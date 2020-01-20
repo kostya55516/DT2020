@@ -64,4 +64,5 @@
   | cons x xs => (part (ord x) xs ord) ++ (cons x (part (flip ord x) xs ord))
     \where
       \func part {A : \Type} (f : A -> Bool) (xs : List A) (ord : A -> A -> Bool) : List A => sort (filter f xs) ord
+      -- Это не тайпчекается, т.к. функции взаимно рекурсивны и рекурсия не структурная.
 
