@@ -57,12 +57,15 @@
   | nil       => nil
   | cons x xs => if (f x) (cons x (filter f xs)) (filter f xs)
 
+\func filterTest : filter (`< 2) (cons 3 (cons 1 (cons 2 nil))) = (cons 1 (nil)) => idp
+
 \func flip {A B : \Type} (f : A -> A -> B) (x y : A) : B => f y x
 
-\func sort {A : \Type} (xs : List A) (ord : A -> A -> Bool) : List A \elim xs
-  | nil       => nil
-  | cons x xs => (part (ord x) xs ord) ++ (cons x (part (flip ord x) xs ord))
-    \where
-      \func part {A : \Type} (f : A -> Bool) (xs : List A) (ord : A -> A -> Bool) : List A => sort (filter f xs) ord
-      -- Это не тайпчекается, т.к. функции взаимно рекурсивны и рекурсия не структурная.
+\func sort {A : \Type} (xs : List A) (ord : A -> A -> Bool) : List A => sort' xs ord xs
+  \where
+    \func sort' {A : \Type} (xs : List A) (ord : A -> A -> Bool) (rest : List A) : List A \elim xs, rest
+      | _, nil       => nil
+      | nil, _       => nil
+      | cons x xs, cons _ rest => (sort' (filter (flip ord x) xs) ord rest) ++ (cons x (sort' (filter (ord x) xs) ord rest))
 
+\func sortTest : sort (cons 3 (cons 1 (cons 2 nil))) (<) = (cons 1 (cons 2 (cons 3 nil))) => idp
