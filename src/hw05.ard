@@ -203,22 +203,24 @@
 
 -- 18. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
 
--- Выразите Jalt через J. Можно пользоваться только J, idp и всем, что через них выражается. TODO
+-- Выразите Jalt через J. Можно пользоваться только J, idp и всем, что через них выражается.
 
 \func Jalt {A : \Type} (B : \Pi (a a' : A) -> a = a' -> \Type)
            (b : \Pi (a : A) -> B a a idp)
-           {a a' : A} (p : a = a') : B a a' p => {?}
+           {a a' : A} (p : a = a') : B a a' p => J (B a) (b a) p
 
--- Выразите J через Jalt. Можно пользоваться только Jalt, idp и всем, что через них выражается. TODO
+-- Выразите J через Jalt. Можно пользоваться только Jalt, idp и всем, что через них выражается.
 -- Hint:
 -- 1. Выразите transport через Jalt.
 -- 2. Докажите, что тип \Sigma (x : A) (a = x) одноэлементный, то есть, что для любого p : \Sigma (x : A) (a = x) верно, что (x,idp) = p.
 -- 3. Используя эти две конструкции, легко определить J.
 
-\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a'
+  => (Jalt (\lam x y q => B x -> B y) (\lam x bx => bx) p) b
 
-\func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a,idp) = {\Sigma (x : A) (a = x)} p => {?}
+\func sigma-contr {A : \Type} {a : A} (p : \Sigma (a' : A) (a = a')) : (a,idp) = {\Sigma (a' : A) (a = a')} p
+  => Jalt (\lam x y q => (x, idp) = {\Sigma (a' : A) (x = a')} (y, q)) (\lam x => idp) p.2
 
 \func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
          (b : B a idp)
-         {a' : A} (p : a = a') : B a' p => {?}
+         {a' : A} (p : a = a') : B a' p => transport'' (\lam x => B x.1 x.2) (sigma-contr (a', p)) b
