@@ -208,9 +208,60 @@
 \data ModView (m n : Nat)
   | quot-rem (q r : Nat) (t : r < m) (p : n = q * m + r)
 
-\func mod-view (m n : Nat) (t : 0 < m) : ModView m n => {?}
+\func mod-view (m n : Nat) (t : 0 < m) : ModView m n
+  | suc m, 0, suc<=suc p =>  quot-rem 0 0 (suc<=suc p) (zeroMult m)
+  | m, suc n, p' => \case mod-view m n p' \with {
+    | quot-rem q r t p => \case natEq (suc r) m \with {
+      | yes w => quot-rem (suc q) 0 p' (helper p w)
+      | no w => quot-rem q (suc r) (suc< t w) (pmap suc p)
+    }
+  }
+\where
+  \func natEq (n m : Nat) : Decide (n = m)
+    | 0, 0 => yes idp
+    | suc n, suc m => \case natEq n m \with {
+      | yes p => yes (pmap suc p)
+      | no n => no (\lam p => n (pmap natPred p))
+    }
+    | 0, suc m => no (\lam p => suc/=0 (sym p))
+    | suc n, 0 => no (\lam p => suc/=0 p)
 
-\func div (n m : Nat) (t : 0 < m) : Nat => {?}
+  \func suc< {n m : Nat} (p : suc n <= m) (q : Not(suc n = m)) : suc (suc n) <= m \elim n, m, p, q
+    | 0, suc m, suc<=suc t, q => suc<=suc (\case \elim m, t, q \with {
+      | 0, t, q => absurd (q idp)
+      | suc m, t, q => suc<=suc (zero<=_)
+    })
+    | suc n, suc m, suc<=suc t, q => suc<=suc (suc< t (\lam w => q (pmap suc w)))
+
+  \func helper {n q m r : Nat} (p : n = q * m + r) (w : suc r = m) : suc n = suc q * m =>
+    suc n           ==< pmap suc p >==
+    q * m + (suc r) ==< pmap (q * m +) w >==
+    q * m + m       ==< pmap (`+ m) (*-comm q m) >==
+    m * (suc q)     ==< *-comm m (suc q) >==
+    suc q * m `qed
+
+\func zeroMult (m : Nat) : 0 = 0 * m
+  | 0 => idp
+  | suc n => zeroMult n
+
+\func *-comm (n m : Nat) : n * m = m * n
+  | 0, m => sym (zeroMult m)
+  | n, 0 => zeroMult n
+  | suc n, suc m => pmap suc (
+    suc n * m + n   ==< pmap (`+ n) (*-comm (suc n) m) >==
+    m * n + m + n   ==< pmap (`+ m + n) (sym (*-comm n m)) >==
+    n * m + m + n   ==< sym (+-assoc (n * m) m n) >==
+    n * m + (m + n) ==< pmap ((n * m) +) (+-comm m n) >==
+    n * m + (n + m) ==< +-assoc (n * m) n m >==
+    n * suc m + m   ==< pmap (`+ m) (*-comm n (suc m)) >==
+    suc m * n + m `qed
+  )
+
+\open Nat \hiding (<=)
+
+\func div (n m : Nat) (t : 0 < m) : Nat => \case (mod-view m n t) \with {
+  | quot-rem q r t p => q
+}
 
 -- 15. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
