@@ -1,5 +1,5 @@
 \import Utils
-\import lect05 (+-comm)
+\import lect05 (+-comm, funExt)
 \import lect06
 \open Nat(+,*)
 
@@ -109,6 +109,17 @@
 
 -- 8. Реализуйте любой алгоритм сортировки, используя \case для паттерн матчинга на результате сравнения элементов списка.
 
+\func sort {A : \Type} (ord : A -> A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons x xs => insertSorted ord x (sort ord xs)
+  \where
+    \func insertSorted {A : \Type} (ord : A -> A -> Bool) (y : A) (xs : List A) : List A \elim xs
+      | nil => cons y nil
+      | cons x xs => \case ord x y \with {
+        | true => cons x (insertSorted ord y xs)
+        | false => cons y (cons x xs)
+      }
+
 -- 9. Определите filter через if, а не через \case.
 --    Докажите для этой версии filter лемму filter-lem.
 
@@ -124,20 +135,22 @@
   | nil => zero<=_
   | cons x xs => \case p x \as t \return length (if t (cons x (filter' p xs)) (filter' p xs)) <= suc (length xs) \with {
     | true => suc<=suc (filter-lem p xs)
-    | false => {?}
+    | false => <=-helper (filter-lem p xs)
   }
-  \where
-    \func helper {n m : Nat} (p : n <= m) : n <= suc m \elim n, m
-      | 0, m => zero<=_
-      | suc n, suc m => suc<=suc (helper (helper2 p))
-    \func helper2 {n m : Nat} (p : suc n <= suc m) : n <= m \elim n, m
-      | 0, m => zero<=_
-      | suc n, 0 => {?}
-      | suc n, suc m => {?}
 
 \open Nat
 
 -- 10. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x =>
+  \case \elim x, f true \as p, idp : f true = p, f false \as q, idp : f false = q \return f (f (f x)) = f x \with {
+    | true, true, ft, _, _ => pmap (\lam x => f (f x)) ft *> pmap f ft
+    | true, false, ft, true, ff => pmap (\lam x => f (f x)) ft *> pmap f ff
+    | true, false, ft, false, ff => pmap (\lam x => f (f x)) ft *> pmap f ff *> lect05.trans ff (sym ft)
+    | false, true, ft, true, ff => pmap (\lam x => f (f x)) ff *> pmap f ft *> lect05.trans ft (sym ff)
+    | false, _, _, false, ff => pmap (\lam x => f (f x)) ff *> pmap f ff
+    | false, false, ft, true, ff => pmap (\lam x => f (f x)) ff *> pmap f ft
+  }
 
 -- 11. Парадокс Рассела показывает, что не существует множества всех множеств.
 -- Если такое множеств существует, то мы можем определить множество B, состоящее из множеств, не содержащих себя.
@@ -149,15 +162,26 @@
 -- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
 -- Докажите этот факт.
 \func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty
-  => {?}
+  => \let t : Not A => (\lam a => (p a) a) \in t (q t)
 
 -- 12. Докажите, что предикат isEven разрешим.
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func odd/=even {n m : Nat} (p : suc(2 * m) = 2 * n) : Empty \elim n, m
+  | 0, m => suc/=0 p
+  | suc n, 0 => suc/=0 (pmap natPred (sym p))
+  | suc n, suc m => odd/=even (pmap natPred (pmap natPred p))
 
--- 13. Докажите, что если равенство элементов A разрешимо, то любой список элементов A либо пуст, либо состоит из повторений одного элемента, либо в A существует два различных элемента.
+\func isEven-dec : DecPred isEven => isEven-decRec
+  \where 
+  \func isEven-decRec (n : Nat) : Decide (isEven n) => \case parity n \with {
+    | even k p => yes (k, p)
+    | odd k p => no (\lam nEven => odd/=even (sym (lect05.trans (sym nEven.2) p)))
+  }
+
+-- 13. Докажите, что если равенство элементов A разрешимо, то любой список элементов A либо пуст,
+-- либо состоитиз повторений одного элемента, либо в A существует два различных элемента.
 
 \func repeat {A : \Type} (n : Nat) (a : A) : List A \elim n
   | 0 => nil
@@ -168,7 +192,16 @@
   | repeated (n : Nat) (a : A) (p : xs = repeat n a)
   | A-is-not-trivial (a a' : A) (p : a = a' -> Empty)
 
-\func lemma {A : \Type} (xs : List A) {dec : DecEq A} : Result A xs => {?}
+\func lemma {A : \Type} (xs : List A) {dec : DecEq A} : Result A xs \elim xs
+  | nil => empty idp
+  | cons x xs => \case lemma {A} xs {dec} \with {
+    | empty p => repeated 1 x (pmap (cons x) p)
+    | repeated n y p => \case dec x y \with {
+      | yes q => repeated (suc n) y (pmap (\lam t => cons t xs) q *> pmap (cons y) p)
+      | no q => A-is-not-trivial x y q
+    }
+    | A-is-not-trivial x y p => A-is-not-trivial x y p
+  }
 
 -- 14. Определите view, представляющий число в виде частного и остатка от деления его на произвольное (неотрицательное) число m.
 --    Реализуйте функцию деления.
@@ -182,11 +215,24 @@
 
 -- 15. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => funExt (\lam a => Bool) (helper p)
+  \where 
+  \func helper {A : \Type} (p : A -> Bool) (a : A) : FromDecToBool (FromBoolToDec p) a = p a =>
+    \case p a \as b \return (\case (\case \elim b \return Decide (T b) \with {
+                                                    | true => yes ()
+                                                    | false => no absurd
+                                                  }) \with {| yes _ => true | no _ => false}) = b \with {
+      | true => idp
+      | false => idp
+    }
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
 -- Для этого введем эквивалентность предикатов.
 
 \func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
   : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+  => \lam x => \case P.2 x \as b \return (\Sigma  (T (\case b \with {| yes a => true | no n => false}) -> P.1 x)
+                                                  (P.1 x -> T (\case b \with {| yes a => true | no n => false}))) \with {
+    | yes q => (\lam _ => q, \lam _ => ())
+    | no q => (\lam t => absurd t, \lam t => q t)
+  }
