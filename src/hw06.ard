@@ -1,4 +1,4 @@
-\import Utils
+\import Utils \hiding (<=-refl)
 \import lect05 (+-comm, funExt)
 \import lect06
 \open Nat(+,*)
@@ -137,8 +137,7 @@
     | true => suc<=suc (filter-lem p xs)
     | false => <=-helper (filter-lem p xs)
   }
-
-\open Nat
+\where \open Nat
 
 -- 10. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
 
