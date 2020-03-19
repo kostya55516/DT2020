@@ -1,0 +1,281 @@
+\import Utils
+\import lect09(sigmaEq,isProp)
+\import lect10 (DecEq, propExt)
+
+-- Тип, являющиеся множествами, ведут себя как множества в теории множеств.
+-- Это означает, что многие теоремы из нее можно доказать и в теории типов.
+-- Например, мы можем доказать теорему Кантора, которая говорит, что мощность множества X строго меньше, чем мощность множества его подмножеств, то есть множества X -> \Prop.
+
+-- Тот факт, что мощность меньше, означает, что существует инъекция из X в X -> \Prop.
+-- В качестве такой инъекции мы можем просто взять предикат равенства.
+-- (=) : X -> (X -> \Prop)
+
+-- Тот факт, что мощность строго меньше, означает, что не существует сюръекции вида
+-- f : X -> (X -> \Prop)
+-- Это легко доказать так же как и в классическом случае.
+
+-- Некоторые факты невозможно доказать в теории типов, так как мы не предполагаем закон исключенного третьего или аксиому выбора.
+-- Например, теорема Кантора-Бернштейна, которая говорит, что если одно множество вкладывается в другое, и наоборот, то между ними есть биекция, не доказуема без исключенного третьего.
+-- При необходимости мы можем добавить эти классические принципы.
+-- Тогда теория станет еще больше похожа на классическую теорию множеств.
+
+-- 1. Сюръективные функции.
+
+\func isInj {A B : \Set} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
+
+\truncated \data Trunc (A : \Type) : \Prop
+  | in A
+  \where {
+    \func map {A B : \Type} (f : A -> B) (x : Trunc A) : Trunc B \elim x
+      | in a => in (f a)
+
+    \lemma extract {A : \Type} (x : Trunc A) (p : isProp A) : \level A p \elim x
+      | in a => a
+  }
+
+-- Сюръективные функции определяютя очевидным образом.
+-- Обратите внимание, что мы используем обрезание, так как хотим, чтобы этот тип был утверждением.
+\func isSur {A B : \Type} (f : A -> B) : \Prop =>
+     \Pi (b : B) -> Trunc (\Sigma (a : A) (f a = b))
+  -- \Pi (b : B) ->        \Sigma (a : A) (f a = b)
+
+-- 2. Биекция = инъекция + сюръекция.
+
+\func isBij {A B : \Set} (f : A -> B) => \Sigma (g : B -> A) (\Pi (x : A) -> g (f x) = x) (\Pi (y : B) -> f (g y) = y)
+
+\func isBij->isInj {A B : \Set} (f : A -> B) (p : isBij f) : isInj f => \lam x y q => sym (p.2 x) *> pmap p.1 q *> p.2 y
+
+\func isBij->isSur {A B : \Set} (f : A -> B) (p : isBij f) : isSur f => \lam b => in (p.1 b, p.3 b)
+
+\func sigmaEq' {A : \Type} (B : A -> \Prop) (t1 t2 : \Sigma (x : A) (B x)) (p : t1.1 = t2.1)
+  => sigmaEq B t1 t2 p (Path.inProp _ _)
+
+\func isInj+isSur->isBij {A B : \Set} (f : A -> B) (ip : isInj f) (sp : isSur f) : isBij f
+  => \let t (b : B) => Trunc.extract (sp b) (\lam t1 t2 => sigmaEq' (\lam a => f a = b) t1 t2 (ip t1.1 t2.1 (t1.2 *> sym t2.2)))
+     \in (\lam b => (t b).1, \lam a => ip _ _ (t (f a)).2, \lam b => (t b).2)
+
+-- 3. Определение Int.
+
+\data Int'
+  | pos' Nat
+  | neg' Nat
+
+-- Конструкторы в обычных типах данных не пересекаются.
+-- Другими словами, мы всегда можем доказать, что con1 не равен con2.
+
+-- Иногда бывает полезно определять типы данных, в которых это будет не верно.
+-- Например, удобно определять целые числа как либо положительное натуральное число, либо отрицательное.
+-- При этом, эти два конструктора будут пересекаться, так как положительный ноль совпадает с отрицательным.
+-- Чтобы определить такой тип данных, нужно в одном или нескольких конструкторов добавить условия, которые говорят как он будет вычисляться.
+-- Синтаксис такой же как и для определения функций при помощи паттерн матчинга.
+-- Единственное отличие заключается в том, что не обязательно все случаи должны быть покрыты.
+-- Например, мы можем определить как neg вычисляется только на zero, но не на suc.
+-- Тогда neg 0 будет вычисляться в pos 0, но neg (suc n) будет уже в нормальной форме как обычный конструктор.
+\data Int
+  | pos Nat
+  | neg (n : Nat) \elim n {
+    | 0 => pos 0
+  }
+
+-- Когда мы определяем функцию над таким типом данных при помощи паттерн матчинга, система проверяет, что ее значение на эквивалентных конструкторах совпадают.
+-- Например, следующее определение не пройдет, так как intEx (pos 0) равно 3, а intEx (neg 0) равно 7.
+{-
+\func intEx (z : Int) : Nat
+  | pos n => 3
+  | neg n => 7
+-}
+
+\func negative (x : Int) : Int
+  | pos n => neg n
+  | neg n => pos n
+
+\func abs (x : Int) : Nat
+  | pos n => n
+  | neg n => n
+
+-- Паттерны, которые вычисляются, можно пропускать в паттерн матчинге.
+-- Например, в следующей функции мы не определили ее значение на neg 0, но система принимает это определение.
+\func intEx' (z : Int) : Nat
+  | pos n => 3
+  | neg (suc n) => 7
+
+-- 4. Фактор-множества.
+
+-- Фактор-множества -- это полезная конструкция над множествами.
+-- Если A -- множество с отношением эквивалентности ~ на нем, то мы можем определить новое множество A/~ вместе с функцией in~ : A -> A/~, которая делает равными эквивалентные элементы A.
+-- A : \Set
+-- ~ : A -> A -> \Prop
+-- A/~ : \Set
+-- in~ : A -> A/~
+-- (in~ a = in~ a') <-> (a ~ a')
+
+-- Чтобы определить функцию над A/~, достаточно задать ее на произвольном элементе a : A так, чтобы эквивалентным элементам соответствовали равные результаты.
+-- Мы можем использовать примерно следующий синтаксим, но в нем нет доказательства этого условия.
+-- Точный синтаксис приведен ниже.
+-- \func f (x : A/~) : B
+--   | in~ a => b
+
+-- Пример использвания фактор-множеств -- это рациональные числа, которые определяются как пары целых чисел с точностью до эквивалентности.
+-- Rat = (\Sigma Int Int) / ~
+-- Где (n,m) ~ (n',m') тогда и только тогда, когда n * m' = n' * m.
+
+-- Фактор-множества можно определить при помощи типов данных с условиями.
+-- Мы просто добавляем конструктор с параметром типа I и двумя условиями на него.
+\truncated \data Quotient (A : \Type) (R : A -> A -> \Type) : \Set
+  | inR A
+  | eq (a a' : A) (r : R a a') (i : I) \elim i {
+    | left => inR a
+    | right => inR a'
+  }
+
+-- Тогда path (eq a a' r) будет задавать равенство между двумя элементами, указанными в этих условиях.
+-- В данном случае мы получаем необходимое равенство между эквивалентными элементами.
+\func quotientEq {A : \Type} {R : A -> A -> \Type} (a a' : A) (r : R a a')
+  : inR a = {Quotient A R} inR a'
+  => path (eq a a' r)
+
+\func inR-sur {A : \Type} {R : A -> A -> \Type} : isSur (inR {A} {R}) =>
+  \lam [a] => \case \elim [a] \with {
+    | inR a => in (a, idp)
+  }
+
+-- Чтобы определить функцию над Quotient A R, необходимо задать ее на элементе вида inR a и на конструкторе eq,
+-- что соответствует доказательству того, что эквивалентным элементам соответствуют равные значения.
+\func quotientEx {A : \Type} {R : A -> A -> \Type} {B : \Set}
+                 (f : A -> B) (p : \Pi (a a' : A) -> R a a' -> f a = f a')
+                 (x : Quotient A R) : B \elim x
+  | inR a => f a
+  | eq a a' r i => p a a' r @ i
+
+-- 4. Тип данных Set.
+
+-- Спецификация типа данных Set.
+-- setExt эквиваленнтен утверждению, что функция \lam x y => isElem y x : S -> (A -> \Prop) является инъективной.
+-- То есть isElem вместе с setExt говорят, что S является подмножеством A -> \Prop, то есть состоит из подмножеств A.
+-- empty вместе с emptyProp говорит, что пустое подмножество принадлежит S.
+-- Вместе с add, addHead, addTail и addProp это влечет, что все конечные подмножества принадлежат S.
+\class SetSpec {A : \Set} (S : \Set)
+  | empty : S
+  | add : A -> S -> S
+  | isElem : A -> S -> \Prop
+
+  | setExt (s1 s2 : S) : (\Pi (x : A) -> isElem x s1 <-> isElem x s2) -> s1 = s2
+  | emptyProp (x : A) : Not (isElem x empty)
+  | addHead (x : A) (s : S) : isElem x (add x s)
+  | addTail (x a : A) (s : S) : isElem x s -> isElem x (add a s)
+  | addProp (x a : A) (s : S) : isElem x (add a s) -> Or (x = a) (isElem x s)
+
+\truncated \data In {A : \Type} (x : A) (xs : List A) : \Prop \elim xs
+  | cons x' xs => { here (x = x') | there (In x xs) }
+
+-- Определим отношение эквивалентности на списках.
+-- Два списка эквивалентны, если они содержат одни и те же элементы.
+\func EqList {A : \Set} (xs ys : List A) => \Pi (x : A) -> In x xs <-> In x ys
+
+-- Простая реализация SetSpec: списки с точностью до эквивалентности EqList.
+\func ListSet (A : \Set) => Quotient (List A) EqList
+
+-- Мы хотим доказать, что наша специцикация полна, то есть, что ListSet -- это единственная реализация, удовлетворяющая ей.
+-- Для этого достаточно построить биекцию между произвольной реализацией S и ListSet
+
+-- Любому списку можно сопоставить множество.
+\func listToSet {S : SetSpec} (xs : List S.A) : S \elim xs
+  | nil => empty
+  | cons a l => add a (listToSet l)
+
+-- Эта функция уважает отношение эквивалентности, а значит у нас есть функция из ListSet в S.
+\func listSetToSet {S : SetSpec} (xs : ListSet S.A) : S \elim xs
+  | inR xs => listToSet xs
+  | eq xs ys r i => setExt (listToSet xs) (listToSet ys)
+      (\lam x => (\lam x-in-l-xs => lem1 ((r x).1 (lem2 x-in-l-xs)), \lam x-in-l-ys => lem1 ((r x).2 (lem2 x-in-l-ys)))) @ i
+  \where {
+    \func lem1 {S : SetSpec} {x : S.A} {xs : List S.A} (p : In x xs) : isElem x (listToSet xs) \elim xs, p
+      | cons a l, here idp => addHead x (listToSet l)
+      | cons a l, there t => addTail x a (listToSet l) (lem1 t)
+
+    \func lem2 {S : SetSpec} {x : S.A} {xs : List S.A} (p : isElem x (listToSet xs)) : In x xs \elim xs
+      | nil => absurd (emptyProp x p)
+      | cons a l => \case addProp x a (listToSet l) p \with {
+        | byLeft p => here p
+        | byRight t => there (lem2 t)
+      }
+  }
+
+-- Чтобы доказать, что listSetToSet является биекцией, достаточно показать, что она инъекция и сюръекция.
+-- Инъективность легко доказывается:
+\func listSetToSet-inj {S : SetSpec} : isInj (listSetToSet {S}) => \lam xs ys p =>
+    \case \elim xs, \elim ys, \elim p \with {
+      | inR xs, inR ys, p => quotientEq xs ys (\lam x =>
+          (\lam x-in-xs => lem2 (transport (isElem x) p (lem1 x-in-xs)), \lam x-in-ys => lem2 (transport (isElem x) (sym p) (lem1 x-in-ys))))
+    }
+  \where \open listSetToSet
+
+-- Чтобы доказать сюръективность, нужно добавить условие, что в S лежат только конечные подмножества A.
+\class FinSetSpec \extends SetSpec
+  | finite (s : S) : Trunc (\Sigma (xs : List A) (\Pi (x : A) -> In x xs <-> isElem x s))
+
+-- Теперь можно доказать сюръективность.
+\func listSetToSet-sur {S : FinSetSpec} : isSur (listSetToSet {S}) => \lam s => \case finite s \with {
+  | in (xs,r) => in (inR xs, setExt (listToSet xs) s (\lam x => (\lam x-in-l-xs => (r x).1 (lem2 x-in-l-xs), \lam x-in-s => lem1 ((r x).2 x-in-s))))
+} \where \open listSetToSet
+
+-- Наша спецификация корректна, то есть ListSet ей удовлетворяет.
+\instance ListSetSet {A : \Set} : FinSetSpec {A} (ListSet A)
+  | empty => inR nil
+  | add => add
+  | isElem => isElem
+  | setExt s1 s2 p => \case \elim s1, \elim s2, \elim p \with {
+    | inR xs, inR ys, p => quotientEq xs ys p
+  }
+  | emptyProp a p => \case p \with {}
+  | addHead x s => \case \elim s \with {
+    | inR xs => here idp
+  }
+  | addTail e x s p => \case \elim s, \elim p \with {
+    | inR xs, p => there p
+  }
+  | addProp e x s p => \case \elim s, \elim p \with {
+    | inR xs, here p => byLeft p
+    | inR ys, there r => byRight r
+  }
+  | finite s => \case \elim s \with {
+    | inR xs => in (xs, \lam x => (\lam p => p, \lam p => p))
+  }
+  \where {
+    \func cons-lem {A : \Type} (x : A) (xs ys : List A) (y : A) (p : y `In` xs -> y `In` ys) (y-in-xs : y `In` cons x xs) : y `In` cons x ys \elim y-in-xs
+      | here p => here p
+      | there t => there (p t)
+
+    \func add {A : \Set} (x : A) (xs : ListSet A) : ListSet A \elim xs
+      | inR xs => inR (cons x xs)
+      | eq xs ys r i => eq (cons x xs) (cons x ys) (\lam y => (cons-lem x xs ys y (r y).1, cons-lem x ys xs y (r y).2)) i
+
+    \func isElem {A : \Set} (x : A) (xs : ListSet A) : \Prop \elim xs
+      | inR xs => x `In` xs
+      | eq xs ys r i => propExt {x `In` xs} {x `In` ys} (r x).1 (r x).2 @ i
+  }
+
+-- Наша спецификация полна, то есть ListSet -- это единственная ее реализация.
+\func listSet=Set {S : FinSetSpec} : ListSet S.A = S =>
+  \let t => isInj+isSur->isBij listSetToSet listSetToSet-inj listSetToSet-sur
+  \in path (iso listSetToSet t.1 t.2 t.3)
+
+-- Мы не предполагали, что равенство на A разрешимо.
+-- Поэтому не все функции возможно реализовать для множеств, удовлетворяющих нашей спецификации (так как она корректна и полна, можно реализовать в точности те функции, которые реализуемы для ListSet).
+-- Например, мы не можем реализовать функцию size : S -> Nat, так как размер множества add a (add a' empty) зависит от того равны ли a и a' или нет.
+
+-- Но если равенство на A разрешимо, то мы можем реализовать все привычные функции.
+-- Это останется в качестве упражнения.
+\func size {S : FinSetSpec} (d : DecEq S.A) (s : S) : Nat => {?}
+
+\func remove {S : FinSetSpec} (d : DecEq S.A) (a : S.A) (s : S) : S => {?}
+
+-- Можно определить другие реализации FinSetSpec. Например, если равенство на A разрешимо, то можно брать только списки без повторяющихся элементов.
+\func NubListSet (A : \Set) (d : DecEq A) => \Sigma (xs : List A) -- плюс условие, что все элементы в xs различны, и факторизация по перестановкам
+
+
+
+
+
+
+
