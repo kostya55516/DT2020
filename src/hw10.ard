@@ -6,24 +6,48 @@
 \data Dec (A : \Prop)
   | yes A
   | no (A -> Empty)
+  \where {
+    \use \level dataIsProp {A : \Prop} (d1 d2 : Dec A) : d1 = d2 \elim d1, d2
+      | yes a, yes a1 => pmap yes (pathInProp a a1)
+      | yes a, no _x => absurd (_x a)
+      | no _x, yes a => absurd (_x a)
+      | no _x, no _x1 => pmap no (pathInProp {A -> Empty} _x _x1)
+  }
 
--- \func testDec : \Prop -> \Prop => Dec
+ \func testDec : \Prop -> \Prop => Dec
 
 -- 2. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
 \func \infix 1 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (
+  \lam x => \case \elim x \with {
+    | trunc a => a
+  },
+  \lam x => trunc x
+)
 
 -- 3. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => (
+  \lam x => \case \elim x \with {
+    | (x, inl l) => inl (x, l)
+    | (x, inr r) => inr (x, r)
+  },
+  \lam x => \case \elim x \with {
+    | inl (x, y) => (x, inl y)
+    | inr (x, y) => (x, inr y)
+  }
+)
 
 -- 4. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+              (p : A `Or` B) : C p => Or-rec {A} {B} {C p}
+                                             (\lam a => transport C (pathInProp (inl a) p) (f a))
+                                             (\lam b => transport C (pathInProp (inr b) p) (g b))
+                                             p
 
 -- 5. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
 --    Докажите, что \Prop является когенератором.
