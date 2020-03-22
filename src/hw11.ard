@@ -1,15 +1,38 @@
-\import Utils
+\import Utils \hiding (<, Bool)
+\import lect05 (funExt)
+\import lect06
+\import lect10 (trunc)
 \import lect11
+\import lect02 (-, <, Bool)
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
 
-\func negPred (x : Int) : Int => {?}
+\func negPred (x : Int) : Int
+  | pos 0 => neg 1
+  | pos n => pos n
+  | neg n => neg (suc n)
 
 -- 2. Определите функции сложения и умножения для Int.
 
-\func \infixl 6 + (x y : Int) : Int => {?}
+\func \infixl 6 + (x y : Int) : Int
+  | pos n, pos m => pos (n + m)
+  | pos n, neg (suc m) => \case n < (suc m) \with {
+    | Bool.true => neg (suc m - n)
+    | Bool.false => pos (n - suc m)
+}
+  | neg (suc n), pos m => \case m < (suc n) \with {
+    | Bool.true => neg (suc n - m)
+    | Bool.false => pos (m - suc n)
+  }
+  | neg (suc n), neg (suc m) => neg (n + m + 2)
+    \where \open Nat (+)
 
-\func \infixl 7 * (x y : Int) : Int => {?}
+\func \infixl 7 * (x y : Int) : Int
+  | pos n, pos m => pos (n * m)
+  | pos n, neg m => neg (n * m)
+  | neg (suc a \as n), pos m => neg (n * m)
+  | neg (suc a \as n), neg (suc b \as m) => pos (n * m)
+  \where \open Nat (*)
 
 -- 3. Определите тип данных BinNat для бинарных натуральных чисел.
 --    У него должно быть три конструктора: для 0, для чисел вида 2*n и чисел вида 2*n+1.
@@ -17,6 +40,11 @@
 --    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули.
 
 \data BinNat
+  | bin0
+  | binOdd (n : BinNat)
+  | binEvn (n : BinNat) \elim n {
+    | bin0 => bin0
+  }
 
 -- 4. Докажите, что функция pred сюръективна.
 
@@ -24,11 +52,13 @@
   | 0 => 0
   | suc n => n
 
-\func pred-is-sur : isSur pred => {?}
+\func pred-is-sur : isSur pred => \lam x => in (suc x, idp)
 
 -- 5. Докажите, что функция suc не сюръективна.
 
-\func suc-is-not-sur (p : isSur suc) : Empty => {?}
+\func suc-is-not-sur (p : isSur suc) : Empty => \case p 0 \with {
+  | in a => suc/=0 a.2
+}
 
 -- 6. Пусть f : A -> B и g : B -> C ─ некоторые функции.
 --    Докажите, что если f и g сюръективны, то g `o` f также сюръективна.
@@ -36,13 +66,21 @@
 
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
-\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f) => {?}
+\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f) => \lam c =>
+    \case q c \with {
+      | in (b, j) => \case p b \with {
+        | in (a, i) => in (a, pmap g i *> j)
+      }
+    }
 
-\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g => {?}
+\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g => \lam c =>
+  \case p c \with {
+    | in (a, i) => in (f a, i)
+  }
 
 -- 7. Определите множество конечных подмножеств множества A, то есть списков элементов A с точностью до перестановок и повторений элементов.
 
-\data Set (A : \Set) : \Set
+\func Set (A : \Set) : \Set => Quotient (List A) EqList
 
 -- 8. Докажите теорему Кантора.
 
@@ -55,17 +93,33 @@
 -- Формально утверждение теоремы Кантора состоит из двух частей:
 -- "существует инъекция из A в Subs A" и "не существует сюръекции из A в Subs A".
 
+\func deEq {A : \Set} (x y : A) (p : A -> \Type) : A => x
+
+\func deEq2 {A : \Set} (x y : A) (p : (=) x = (=) y) : x = y => {?}
+
 \func cantor1 (A : \Set) : \Sigma (f : A -> Subs A) (isInj f)
-  => {?}
+  => (=, \lam x y p => {?})
 
 \func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty
   => {?}
 
 -- 9. Постройте функции Nat -> BinNat и BinNat -> Nat и докажите, что они взаимно обратны.
 
-\func NatToBinNat (n : Nat) : BinNat => {?}
+\func NatToBinNat (n : Nat) : BinNat => helper n n
+    \where
+      \func helper (n c : Nat) : BinNat
+        | 0, _ => bin0
+        | suc n, 0 => bin0
+        | suc n, suc m => \case parity n \with {
+          | even k p => binOdd (helper k m)
+          | odd k p => binEvn (helper (suc k) m)
+        }
 
-\func BinNatToNat (b : BinNat) : Nat => {?}
+\func BinNatToNat (b : BinNat) : Nat
+  | bin0 => 0
+  | binOdd n => 2 * (BinNatToNat n) + 1
+  | binEvn n => 2 * (BinNatToNat n)
+  \where \open Nat
 
 \func nbn (n : Nat) : BinNatToNat (NatToBinNat n) = n => {?}
 
